@@ -281,7 +281,7 @@ void commutate(ControllerStruct *controller, EncoderStruct *encoder)
 
 void torque_control(ControllerStruct *controller){
 
-    float torque_des = controller->kp*(controller->p_des - controller->theta_mech) + controller->t_ff + controller->kd*(controller->v_des - controller->dtheta_mech);
+    float torque_des = controller->kp*diffPose(controller->p_des, controller->theta_mech) + controller->t_ff + controller->kd*(controller->v_des - controller->dtheta_mech);
     controller->i_q_des = fast_fmaxf(fast_fminf(torque_des/(KT*GR), controller->i_max), -controller->i_max);
     controller->i_d_des = 0.0f;
 
@@ -296,4 +296,14 @@ void zero_commands(ControllerStruct * controller){
 	controller->p_des = 0;
 	controller->v_des = 0;
 	controller->i_q_des = 0;
+}
+
+float diffPose(float target_pose, float sens_pose){
+	float diff_pose = target_pose - sens_pose;
+	if (diff_pose > P_MAX){
+		diff_pose -= (P_MAX - P_MIN);
+	}else if(diff_pose < P_MIN){
+		diff_pose += (P_MAX - P_MIN);
+	}
+	return diff_pose;
 }

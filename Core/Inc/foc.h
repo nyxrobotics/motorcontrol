@@ -73,6 +73,7 @@ void update_observer(ControllerStruct *controller, ObserverStruct *observer);
 void field_weaken(ControllerStruct *controller);
 float linearize_dtc(ControllerStruct *controller, float dtc);
 void zero_commands(ControllerStruct * controller);
+float diffPose(float target_pose, float sens_pose);
 
 
 #endif /* INC_FOC_H_ */

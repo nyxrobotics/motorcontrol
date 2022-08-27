@@ -1,3 +1,4 @@
+/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file    can.c
@@ -6,17 +7,16 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2022 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
-
+/* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "can.h"
 
@@ -180,22 +180,51 @@ void pack_reply(CANTxMessage *msg, uint8_t id, float p, float v, float t){
 /// 6: [kd[3-0], torque[11-8]]
 /// 7: [torque[7-0]]
 void unpack_cmd(CANRxMessage msg, float *commands){// ControllerStruct * controller){
-        int p_int = (msg.data[0]<<8)|msg.data[1];
-        int v_int = (msg.data[2]<<4)|(msg.data[3]>>4);
-        int kp_int = ((msg.data[3]&0xF)<<8)|msg.data[4];
-        int kd_int = (msg.data[5]<<4)|(msg.data[6]>>4);
-        int t_int = ((msg.data[6]&0xF)<<8)|msg.data[7];
-
-        commands[0] = uint_to_float(p_int, P_MIN, P_MAX, 16);
-        commands[1] = uint_to_float(v_int, V_MIN, V_MAX, 12);
-        commands[2] = uint_to_float(kp_int, KP_MIN, KP_MAX, 12);
-        commands[3] = uint_to_float(kd_int, KD_MIN, KD_MAX, 12);
-        commands[4] = uint_to_float(t_int, -I_MAX*KT*GR, I_MAX*KT*GR, 12);
-    //printf("Received   ");
-    //printf("%.3f  %.3f  %.3f  %.3f  %.3f   %.3f", controller->p_des, controller->v_des, controller->kp, controller->kd, controller->t_ff, controller->i_q_ref);
-    //printf("\n\r");
-    }
+	// Control loop 400Hz -> 2.5ms -> 0.0025s
+	static int position_control = 1;
+	static int p_int_last = 0;
+	static int v_int_last = 0;
+	int p_int = (msg.data[0]<<8)|msg.data[1];
+	int v_int = (msg.data[2]<<4)|(msg.data[3]>>4);
+	if (p_int_last == 0 && v_int_last == 0){
+		if(p_int != 0){
+			position_control = 1; //Position Control
+		}else if(v_int != 0){
+			position_control = 0; //Speed Control
+		}
+	}
+	float v_float = 0;
+	static float p_float = 0;
+	if(position_control == 1){
+		float p_float_next = uint_to_float(p_int, P_MIN, P_MAX, 16);
+		float p_diff = p_float_next - p_float;
+		if(p_diff > (P_MAX - P_MIN) / 2.f){
+			p_diff -= (P_MAX - P_MIN);
+		}else if(p_diff < - (P_MAX - P_MIN) / 2.f){
+			p_diff += (P_MAX - P_MIN);
+		}
+		v_float = p_diff * 0.0025f;
+		p_float = p_float_next;
+	}else{
+		v_float = uint_to_float(v_int, V_MIN, V_MAX, 12);
+		p_float += (v_float * 0.0025f);
+		if(p_float > P_MAX){
+			p_float -= (P_MAX - P_MIN);
+		}else if(p_float < P_MIN){
+			p_float += (P_MAX - P_MIN);
+		}
+	}
+	int kp_int = ((msg.data[3]&0xF)<<8)|msg.data[4];
+	int kd_int = (msg.data[5]<<4)|(msg.data[6]>>4);
+	int t_int = ((msg.data[6]&0xF)<<8)|msg.data[7];
+	commands[0] = p_float;
+	commands[1] = v_float;
+	commands[2] = uint_to_float(kp_int, KP_MIN, KP_MAX, 12);
+	commands[3] = uint_to_float(kd_int, KD_MIN, KD_MAX, 12);
+	commands[4] = uint_to_float(t_int, -I_MAX*KT*GR, I_MAX*KT*GR, 12);
+//printf("Received   ");
+//printf("%.3f  %.3f  %.3f  %.3f  %.3f   %.3f", controller->p_des, controller->v_des, controller->kp, controller->kd, controller->t_ff, controller->i_q_ref);
+//printf("\n\r");
+}
 
 /* USER CODE END 1 */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
